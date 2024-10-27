@@ -1,0 +1,58 @@
+Partlist
+
+Exported from main.sch at 09.08.2003 20:31:13 
+
+EAGLE Version 4.1r16 Copyright (c) 1988-2003 CadSoft
+
+Part     Value               Device     Package  Library        Sheet
+
+C1       1000u               ELC-5      ES-5     discrete       1
+C2       10n                 CAPNP-2,5  C-2,5    discrete       1
+C6       10n                 CAPNP-2,5  C-2,5    discrete       1
+C7       27p                 CAPNP-2,5  C-2,5    discrete       1
+C8       100n                CAPNP-2,5  C-2,5    discrete       1
+C9       10n                 CAPNP-2,5  C-2,5    discrete       1
+D1       1N4004              1N4004     DO41-10  diode          1
+D2       1N4004              1N4004     DO41-10  diode          1
+D3       1N4004              1N4004     DO41-10  diode          1
+D4       1N4004              1N4004     DO41-10  diode          1
+IC1      DS75176B            DS75176B   DIL08    oksid1         1
+IC2      DS75176B            DS75176B   DIL08    oksid1         1
+IC3      DS75176B            DS75176B   DIL08    oksid1         1
+IC4      DS75176B            DS75176B   DIL08    oksid1         1
+IC5                          78XXS      78XXS    v-reg          1
+PL1      Centronix 36P       C36HP      36HP     con-amp-champ  1
+QG1                          QG5860     DIL14S   crystal        1
+R1       47                  RESEU-10   R-10     discrete       1
+R2       47                  RESEU-10   R-10     discrete       1
+R3       47                  RESEU-10   R-10     discrete       1
+R4       47                  RESEU-10   R-10     discrete       1
+R5       47                  RESEU-10   R-10     discrete       1
+R6       47                  RESEU-10   R-10     discrete       1
+R7       47                  RESEU-10   R-10     discrete       1
+R8       47                  RESEU-10   R-10     discrete       1
+R9       10k                 RESEU-10   R-10     discrete       1
+R10      10k                 RESEU-10   R-10     discrete       1
+R11      10k                 RESEU-10   R-10     discrete       1
+R12      10k                 RESEU-10   R-10     discrete       1
+R13      10k                 RESEU-10   R-10     discrete       1
+R14      10k                 RESEU-10   R-10     discrete       1
+R15      10k                 RESEU-10   R-10     discrete       1
+R16      10k                 RESEU-10   R-10     discrete       1
+R17      100                 RESEU-10   R-10     discrete       1
+R18      100                 RESEU-10   R-10     discrete       1
+R19      100                 RESEU-10   R-10     discrete       1
+R20      100                 RESEU-10   R-10     discrete       1
+R21      100                 RESEU-10   R-10     discrete       1
+R22      120 0.6W            RESEU-10   R-10     discrete       1
+R23      1k                  RESEU-10   R-10     discrete       1
+R24      1k                  RESEU-10   R-10     discrete       1
+R25      1k                  RESEU-10   R-10     discrete       1
+U$1      PIC18F452 / MASTER  18F452     DIL40    oksid1         1
+U$2      PIC18F452 / SLAVE 2 18F452     DIL40    oksid1         1
+U$3      PIC18F452 / SLAVE 1 18F452     DIL40    oksid1         1
+X1       XLR 3P FEMALE       NC3FD-H    NC3FD-H  con-neutrik_ag 1
+X2       XLR 3P FEMALE       NC3FD-H    NC3FD-H  con-neutrik_ag 1
+X3       XLR 3P FEMALE       NC3FD-H    NC3FD-H  con-neutrik_ag 1
+X4       XLR 3P MALE         NC3MD-H    NC3MD-H  con-neutrik_ag 1
+X5                           737992-55  737992-5 con-conrad     1

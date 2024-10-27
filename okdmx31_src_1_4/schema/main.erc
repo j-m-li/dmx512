@@ -1,0 +1,30 @@
+EAGLE Version 4.1r16 Copyright (c) 1988-2003 CadSoft
+
+Electrical Rule Check for E:/Program Files/EAGLE-4.09r2/projects/spp2dmx/main.sch at 09.08.2003 20:22:09 
+
+WARNING: Sheet 1/1: POWER Pin QG1 VCC connected to +5V
+WARNING: Sheet 1/1: POWER Pin IC1P VCC connected to +5V
+WARNING: Sheet 1/1: POWER Pin U$1 VSS connected to GND
+WARNING: Sheet 1/1: POWER Pin U$1 VSS connected to GND
+WARNING: Sheet 1/1: POWER Pin U$1 VDD connected to +5V
+WARNING: Sheet 1/1: POWER Pin U$1 VDD connected to +5V
+WARNING: Sheet 1/1: POWER Pin U$2 VSS connected to GND
+WARNING: Sheet 1/1: POWER Pin U$2 VSS connected to GND
+WARNING: Sheet 1/1: POWER Pin U$2 VDD connected to +5V
+WARNING: Sheet 1/1: POWER Pin U$2 VDD connected to +5V
+WARNING: Sheet 1/1: POWER Pin U$3 VSS connected to GND
+WARNING: Sheet 1/1: POWER Pin U$3 VSS connected to GND
+WARNING: Sheet 1/1: POWER Pin U$3 VDD connected to +5V
+WARNING: Sheet 1/1: POWER Pin U$3 VDD connected to +5V
+WARNING: Sheet 1/1: POWER Pin IC3P VCC connected to +5V
+WARNING: Sheet 1/1: POWER Pin IC4P VCC connected to +5V
+WARNING: Sheet 1/1: POWER Pin IC2P VCC connected to +5V
+ERROR: 2 OUTPUT Pins on net N$25
+ERROR: 3 OUTPUT Pins on net SCK
+ERROR: 3 OUTPUT Pins on net SDI
+ERROR: 3 OUTPUT Pins on net SDO
+
+No board loaded - consistency has not been checked
+
+    4 errors
+   17 warnings

@@ -1,0 +1,1236 @@
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;******************************************************************************
+                      00002 ;
+                      00003 ;                     Copyright (c) 2003 O'ksi'D
+                      00004 ;
+                      00005 ; Permission is hereby granted, free of charge, to any person obtaining a
+                      00006 ; copy of this software and associated documentation files (the "Software"),
+                      00007 ; to deal in the Software without restriction, including without limitation
+                      00008 ; the rights to use, copy, modify, merge, publish, distribute, sublicense,
+                      00009 ; and/or sell copies of the Software, and to permit persons to whom the
+                      00010 ; Software is furnished to do so, subject to the following conditions:
+                      00011 ;
+                      00012 ; The above copyright notice and this permission notice shall be included in
+                      00013 ; all copies or substantial portions of the Software.
+                      00014 ;
+                      00015 ; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+                      00016 ; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+                      00017 ; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+                      00018 ; O'KSI'D BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+                      00019 ; WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+                      00020 ; OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+                      00021 ; SOFTWARE.
+                      00022 ;
+                      00023 ; Except as contained in this notice, the name of the O'ksi'D shall
+                      00024 ; not be used in advertising or otherwise to promote the sale, use or other
+                      00025 ; dealings in this Software without prior written authorization from O'ksi'D.
+                      00026 ;******************************************************************************
+                      00027 ;                                                                             *
+                      00028 ;    Filename:          slave2dmx.asm                                               *
+                      00029 ;    Date:                      30.7.2003                                                 *
+                      00030 ;    File Version:  1.0                                                       *
+                      00031 ;                                                                             *
+                      00032 ;    Author:  Jean-Marc Lienher                                               *
+                      00033 ;******************************************************************************
+                      00034 ;                                                                             *
+                      00035 ;    Files required:         P18F452.INC                                      *
+                      00036 ;                                                                             *
+                      00037 ;******************************************************************************
+                      00038 
+                      00039         LIST P=18F452           ;directive to define processor
+                      00040         #include <P18F452.INC>  ;processor specific variable definitions
+                      00001         LIST
+                      00002 ; P18F452.INC  Standard Header File, Version 1.4   Microchip Technology, Inc.
+                      00857         LIST
+                      00041 
+                      00042 ;******************************************************************************
+                      00043 ;Configuration bits
+                      00044 ;
+                      00045 ; OSCEN = 1 (Osc switch disabled)
+                      00046 ; Oscillator = 101 (EC OSC2 as Port pin)
+                      00047 ; BOREN = 1 (BO Reset enabled)
+                      00048 ; BO Voltage = 01 ( Vbor 4.2V)
+                      00049 ; WDTEN = 0 ( WDog disabled)
+                      00050 ; WD-Prescale = 111 (1:128)
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00051 ; PWRTEN = 1 (PWRT disabled)
+                      00052 ; LVP = 0 (LVP diabled, RB5 is I/O pin)
+                      00053 ; CCP2MX = 1 (CCP2 mux RC1)
+                      00054 ; STVREN = 1 (Stack O/U reset)
+                      00055 ; DEBUG = 1 (In-Circuit debbugger disabled)
+                      00056 ;
+                      00057 
+                      00058 ;******************************************************************************
+                      00059 ;Macro definitions
+                      00060 ;
+                      00061 
+                      00062 TestMacro macro
+                      00063                 
+                      00064                 endm
+                      00065 
+                      00066 ;******************************************************************************
+                      00067 ;Variable definitions
+                      00068 ; These variables are only needed if low priority interrupts are used. 
+                      00069 ; More variables may be needed to store other special function registers used
+                      00070 ; in the interrupt routines.
+                      00071 
+                      00072                 CBLOCK  0x080 ; block 0x0 high (128 byte)
+  00000080            00073                 WREG_TEMP       ;variable used for context saving 
+  00000081            00074                 STATUS_TEMP     ;variable used for context saving
+  00000082            00075                 BSR_TEMP        ;variable used for context saving
+                      00076                 ENDC
+                      00077 
+                      00078                 CBLOCK  0x000 ; access RAM (128 bytes) = block 0x0 low
+                      00079                 ; *** common variables ***
+  00000000            00080                 BSR_SAVE         
+  00000001            00081                 STATUS_SAVE
+  00000002            00082                 WREG_SAVE
+  00000003            00083                 TMP1                    ; generic tmp
+  00000004            00084                 TMP2                    ; generic tmp
+  00000005            00085                 ITMP1                   ; generic tmp in interrupt routine
+  00000006            00086                 ITMP2                   ; generic tmp in interrupt routine
+                      00087 
+                      00088                 ; *** Synchronous Serial Port Recieve ***
+  00000007            00089                 COMMAND                 ; recieved command 
+                      00090                                                 ; 0x4? = set current block
+                      00091                                                 ; 0x1? = write data
+                      00092                                                 ; 0x80 = Reset
+  00000008            00093                 INBYTE                  ; recieved byte
+  00000009            00094                 CHIP                    ; chip selected 0 = this, 1 = slave0, 2 = slave1
+  0000000A            00095                 BLOCK                   ; current selected block
+  0000000B            00096                 NIBBLE_CURRENT  ; current nibble increment counter      
+  0000000C            00097                 DATA_BYTE               ; tmp memory for the 2 nibbles 
+                      00098 
+                      00099                 ; *** DMX 512 TX ***
+  0000000D            00100                 SND_STATE               ; sender status
+                      00101                                                 ; bit   state
+                      00102                                                 ;  0    send byte 256-511
+                      00103                                                 ;  1    byte 511 has been loaded in TX buffer
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00104                                                 ;  2    
+                      00105                                                 ;  3    break sequence : TX is/will be low
+                      00106                                                 ;  4    must send the start code
+  0000000E            00107                 SND_COUNT               ; current sender byte
+  0000000F            00108                 BREAK                   ; count for sender break time
+                      00109                 
+                      00110                 ENDC
+                      00111 
+                      00112                 CBLOCK 0x100 ; block 0x1
+                      00113                 ; ...
+                      00114                 ENDC 
+                      00115 
+                      00116                 CBLOCK 0x200 ; block 0x2
+  00000200            00117                 OUT0
+                      00118                 ; ...
+  00000201            00119                 OUT255
+                      00120                 ENDC 
+                      00121 
+                      00122                 CBLOCK 0x300 ; block 0x3
+  00000300            00123                 OUT256
+                      00124                 ; ...
+  00000301            00125                 OUT511
+                      00126                 ENDC 
+                      00127 
+                      00128                 CBLOCK 0x400 ; block 0x4
+                      00129                 ; ...
+                      00130                 ENDC 
+                      00131 
+                      00132                 CBLOCK 0x500 ; block 0x5
+                      00133                 ; ...
+                      00134                 ENDC 
+                      00135 
+                      00136 ;******************************************************************************
+                      00137 ;EEPROM data
+                      00138 ; Data to be programmed into the Data EEPROM is defined here
+                      00139 
+F00000                00140                 ORG     0xf00000
+                      00141 
+                      00142 ;               DE      "Test Data",0,1,2,3,4,5
+                      00143 
+                      00144 ;******************************************************************************
+                      00145 ;Reset vector
+                      00146 ; This code will start executing when a reset occurs.
+                      00147 
+000000                00148                 ORG     0x0000
+                      00149 
+000000 EF51 F000      00150                 goto    Init            ;go to start of main code
+                      00151 
+                      00152 ;******************************************************************************
+                      00153 ;High priority interrupt vector
+                      00154 ; This code will start executing when a high priority interrupt occurs or
+                      00155 ; when any interrupt occurs if interrupt priorities are not enabled.
+                      00156 
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000008                00157                 ORG     0x0008
+                      00158 
+000008 EF19 F000      00159                 goto    HighInt         ;go to high priority interrupt routine
+                      00160 
+                      00161 ;******************************************************************************
+                      00162 ;Low priority interrupt vector and routine
+                      00163 ; This code will start executing when a low priority interrupt occurs.
+                      00164 ; This code can be removed if low priority interrupts are not used.
+                      00165 
+000018                00166                 ORG     0x0018
+                      00167 
+000018 CFD8 F081      00168                 movff   STATUS,STATUS_TEMP      ;save STATUS register
+00001C CFE8 F080      00169                 movff   WREG,WREG_TEMP          ;save working register
+000020 CFE0 F082      00170                 movff   BSR,BSR_TEMP            ;save BSR register
+                      00171 
+                      00172 ;       *** low priority interrupt code goes here ***
+                      00173                 ; BANKED or ACCESS
+                      00174 
+000024 C082 FFE0      00175                 movff   BSR_TEMP,BSR            ;restore BSR register
+000028 C080 FFE8      00176                 movff   WREG_TEMP,WREG          ;restore working register
+00002C C081 FFD8      00177                 movff   STATUS_TEMP,STATUS      ;restore STATUS register
+000030 0010           00178                 retfie
+                      00179 
+                      00180 ;******************************************************************************
+                      00181 ;High priority interrupt routine
+                      00182 ; The high priority interrupt code is placed here to avoid conflicting with
+                      00183 ; the low priority interrupt vector.
+                      00184 
+000032                00185 HighInt:
+                      00186         ; *** Synchronous serial port interrupt ***
+                      00187 
+000032 A0C7           00188                 btfss SSPSTAT, BF, ACCESS       ; do we have recieved a byte ?
+000034 EF50 F000      00189                 goto SspifEnd                           ; no            
+                      00190 
+000038 CFC9 F008      00191                 movff SSPBUF, INBYTE            ; read the data
+                      00192 
+00003C 969E           00193                 bcf PIR1, SSPIF, ACCESS         ; reset interrupt flag
+                      00194 
+00003E B880           00195                 btfsc PORTA, 4, ACCESS          ; is SS low ?
+000040 EF50 F000      00196                 goto SspifEnd                           ; no, we are not selected
+                      00197                 
+000044 0E80           00198                 movlw 0x80
+000046 6208           00199                 cpfseq INBYTE, ACCESS           ; reset command ?
+000048 EF2A F000      00200                 goto ResetCmdEnd                        ; no
+00004C EC97 F000      00201                 call ResetDevice
+000050 EF50 F000      00202                 goto SspifEnd
+000054                00203 ResetCmdEnd:
+                      00204 
+000054 C008 F003      00205                 movff INBYTE, TMP1                      ; copy data to tmp memory
+000058 0EF0           00206                 movlw 0xF0
+00005A 1603           00207                 andwf TMP1, 1, ACCESS           ; mask command nibble
+                      00208                 
+00005C 0E40           00209                 movlw 0x40
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00005E 6203           00210                 cpfseq TMP1, ACCESS                     ; set block command ?
+000060 EF39 F000      00211                 goto SetBlockCmdEnd                     ; no
+                      00212                 
+000064 0E0F           00213                 movlw 0x0F
+000066 1408           00214                 andwf INBYTE, 0, ACCESS         ; mask data
+000068 CFE8 F00A      00215                 movff WREG, BLOCK                       ; save block value
+                      00216 
+00006C 6A0B           00217                 clrf NIBBLE_CURRENT, ACCESS     ; clean counter
+                      00218                 
+00006E EF50 F000      00219                 goto SspifEnd
+                      00220 
+000072                00221 SetBlockCmdEnd:
+                      00222 
+000072 0E10           00223                 movlw 0x10
+000074 6203           00224                 cpfseq TMP1, ACCESS                     ; write command
+000076 EF50 F000      00225                 goto WriteCmdEnd                        ; no
+                      00226 
+00007A A00B           00227                 btfss NIBBLE_CURRENT, 0, ACCESS ; is byte complete ?
+00007C EF47 F000      00228                 goto WriteCmda                                  ; no
+                      00229 
+                      00230         ; *** low nibble ***
+000080 0E0F           00231                 movlw 0x0F                                      
+000082 1408           00232                 andwf INBYTE, 0, ACCESS         ; mask data
+000084 120C           00233                 iorwf DATA_BYTE, 1, ACCESS      ; OR it with high nibble        
+                      00234 
+000086 EC9C F000      00235                 call WriteFlush                         ; write it in memory
+00008A EF4C F000      00236                 goto WriteCmdb
+                      00237 
+00008E                00238 WriteCmda:
+                      00239         ; *** high nibble ***
+00008E C008 F00C      00240                 movff INBYTE, DATA_BYTE         ; move recieved byte in data buffer
+000092 3A0C           00241                 swapf DATA_BYTE, 1, ACCESS      ; swap nibbles
+000094 0EF0           00242                 movlw 0xF0
+000096 160C           00243                 andwf DATA_BYTE, 1, ACCESS  ; mask valid data
+                      00244                 
+000098                00245 WriteCmdb:
+000098 2A0B           00246                 incf NIBBLE_CURRENT, 1, ACCESS  ; incremment current nibble
+00009A 0E40           00247                 movlw 0x40                                              ; 64
+00009C 600B           00248                 cpfslt NIBBLE_CURRENT, ACCESS   ; last nibble
+00009E 6A0B           00249                 clrf NIBBLE_CURRENT, ACCESS             ; yes, re-start from 0
+                      00250 
+0000A0                00251 WriteCmdEnd:
+0000A0                00252 SspifEnd:
+                      00253 
+0000A0                00254 HighIntEnd:
+                      00255 
+0000A0 0011           00256                 retfie  FAST                            ; return with cached registers enabled
+                      00257 
+                      00258 ;******************************************************************************
+                      00259 ;Start of Initialization
+                      00260 ;
+                      00261 
+0000A2                00262 Init:
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00263         
+0000A2 EC8A F000      00264                 call CleanMem
+                      00265 
+0000A6 860D           00266                 bsf SND_STATE, 3, ACCESS        ; initilize sender
+                      00267 
+                      00268         
+0000A8 6A92           00269                 clrf TRISA, ACCESS                      ; unused port A as output
+0000AA 8892           00270                 bsf TRISA, 4, ACCESS            ; port A 4 as input
+0000AC 6A96           00271                 clrf TRISE, ACCESS                      ; unused port E as output
+0000AE 6A95           00272                 clrf TRISD, ACCESS                      ; unused port D as output
+                      00273 
+0000B0 6A93           00274                 clrf TRISB, ACCESS                      ; Port B as output
+                      00275 
+0000B2 96F2           00276                 bcf INTCON, RBIE, ACCESS        ; disable port B interrupts
+0000B4 98F2           00277                 bcf INTCON, INT0IE, ACCESS      ; disable int0 interrupt
+                      00278 
+0000B6 98F0           00279                 bcf INTCON3, INT2IE, ACCESS ; disable int2 inter
+0000B8 96F0           00280                 bcf INTCON3, INT1IE, ACCESS ; disable int1 interrupt 
+                      00281                 
+0000BA 0E00           00282                 movlw 0x00
+0000BC CFE8 FF94      00283                 movff WREG, TRISC                       ; port C as ouput 
+0000C0 9C94           00284                 bcf TRISC, 6, ACCESS            ; TX pin as output
+0000C2 8CAC           00285                 bsf TXSTA, TX9, ACCESS          ; 9 bits sender
+0000C4 80AC           00286                 bsf TXSTA, TX9D, ACCESS         ; 9th bit is a '1'
+0000C6 9AAC           00287                 bcf TXSTA, TXEN, ACCESS         ; tx disabled
+0000C8 98AC           00288                 bcf TXSTA, SYNC, ACCESS         ; asynchronous
+0000CA 94AC           00289                 bcf TXSTA, BRGH, ACCESS         ; low speed
+0000CC 0E01           00290                 movlw 0x1
+0000CE 6EAF           00291                 movwf SPBRG, ACCESS             ; 250 kBauds at 32 MHz
+0000D0 989D           00292                 bcf PIE1, TXIE, ACCESS          ; TX interrupt disabled
+0000D2 9A9D           00293                 bcf PIE1, RCIE, ACCESS          ; RX interrupt disabled
+0000D4 9C82           00294                 bcf PORTC, 6, ACCESS            ; TX default low
+0000D6 8EAB           00295                 bsf RCSTA, SPEN, ACCESS         ; USART enabled
+                      00296 
+0000D8 8894           00297                 bsf TRISC, 4, ACCESS            ; SDI as input
+0000DA 8A94           00298                 bsf TRISC, 5, ACCESS            ; SDO as input 
+0000DC 8A92           00299                 bsf TRISA, 5, ACCESS            ; SS as input 
+                      00300                                                                         ; the SS pin is totaly buggy in 
+                            slave mode
+                      00301                                                                         ; don't use it !
+0000DE 8A80           00302                 bsf PORTA, 5, ACCESS            ; set SS data latch to high
+0000E0 8694           00303                 bsf TRISC, 3, ACCESS            ; SCK as input
+0000E2 9EC7           00304                 bcf SSPSTAT, SMP, ACCESS        ; input sampled at middle       
+0000E4 98C6           00305                 bcf SSPCON1, CKP, ACCESS        ; Idle clock state = low level
+0000E6 9CC7           00306                 bcf SSPSTAT, CKE, ACCESS        ; data transmited on falling edge
+0000E8 9EC6           00307                 bcf SSPCON1, WCOL, ACCESS       ; No colision           
+0000EA 96C6           00308                 bcf SSPCON1, SSPM3, ACCESS      ; Slave, SS pin disabled
+0000EC 84C6           00309                 bsf SSPCON1, SSPM2, ACCESS
+0000EE 92C6           00310                 bcf SSPCON1, SSPM1, ACCESS
+0000F0 80C6           00311                 bsf SSPCON1, SSPM0, ACCESS
+0000F2 8AC6           00312                 bsf SSPCON1, SSPEN, ACCESS      ; serial port enabled   
+0000F4 869D           00313                 bsf PIE1, SSPIE, ACCESS         ; Synchonous RX/TX interrupt enabled
+                      00314 
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0000F6 0E00           00315                 movlw 0x0                                       ; random delay
+0000F8 6ED6           00316                 movwf TMR0L, ACCESS                     ; load timer 0 counter register
+0000FA 8ED5           00317                 bsf T0CON, TMR0ON, ACCESS       ; timer on
+0000FC 8CD5           00318                 bsf T0CON, T08BIT, ACCESS       ; 8 bit counter
+0000FE 9AD5           00319                 bcf T0CON, T0CS, ACCESS         ; internal clock
+000100 86D5           00320                 bsf T0CON, PSA, ACCESS          ; prescaller off
+000102 94D5           00321                 bcf T0CON, T0PS2, ACCESS        ; Fosc / 4 ( 0.125 uS)
+000104 92D5           00322                 bcf T0CON, T0PS1, ACCESS
+000106 90D5           00323                 bcf T0CON, T0PS0, ACCESS
+000108 9AF2           00324                 bcf INTCON, TMR0IE, ACCESS      ; disable interrupt   
+                      00325 
+00010A 9ED0           00326                 bcf RCON, IPEN, ACCESS          ; disable interrupts priority
+00010C 8EF2           00327                 bsf INTCON, GIE, ACCESS         ; enable all unmasked interrupts 
+00010E 8CF2           00328                 bsf INTCON, PEIE, ACCESS        ; enable all unmasked peripheral 
+                      00329                                                                         ; interrupts
+                      00330         
+                      00331 
+000110 EFB0 F000      00332                 goto Main
+                      00333 ;******************************************************************************
+                      00334 ; Sub routines
+                      00335 ;
+                      00336 
+                      00337 
+000114                00338 CleanMem:
+                      00339         ; *** clear OUT memory *** 
+000114 EE02 F000      00340                 lfsr FSR0, 0x200                        ; destination base address
+000118                00341 CleanMema:
+000118 6AEF           00342                 clrf INDF0, ACCESS                      ; clear memory
+00011A 3EE9           00343                 incfsz FSR0L, 1, ACCESS         ; increment indirect pointer
+00011C EF8C F000      00344                 goto CleanMema
+                      00345 
+000120 EE03 F000      00346                 lfsr FSR0, 0x300                        ; destination base address
+000124                00347 CleanMemb:
+000124 6AEF           00348                 clrf INDF0, ACCESS                      ; clear memory
+000126 3EE9           00349                 incfsz FSR0L, 1, ACCESS         ; increment indirect pointer
+000128 EF92 F000      00350                 goto CleanMemb
+                      00351 
+00012C 0012           00352                 return
+                      00353 
+                      00354 
+00012E                00355 ResetDevice:
+                      00356         ; *** Reset the device  ***
+00012E 6A0B           00357                 clrf NIBBLE_CURRENT, ACCESS
+000130 6A07           00358                 clrf COMMAND, ACCESS
+000132 EC8A F000      00359                 call CleanMem
+000136 0012           00360                 return
+                      00361 
+000138                00362 WriteFlush:
+                      00363         ;*** write recieved byte on this chip ***
+                      00364 
+000138 EE12 F000      00365                 lfsr FSR1, 0x200                        ; destination base address
+00013C B60A           00366                 btfsc BLOCK, 3, ACCESS          ; high block address ?
+00013E EE13 F000      00367                 lfsr FSR1, 0x300                        ; (256-511) base address
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00368 
+000142 C00B F004      00369                 movff NIBBLE_CURRENT, TMP2      ; compute byte offset
+000146 4204           00370                 rrncf TMP2, 1, ACCESS           ; divide per 2
+000148 9E04           00371                 bcf TMP2, 7, ACCESS                     ; clear shifted low bit
+00014A C004 FFE1      00372                 movff TMP2, FSR1L                       ; load o
+                      00373 
+00014E B40A           00374                 btfsc BLOCK, 2, ACCESS          ; set block offset
+000150 8EE1           00375                 bsf FSR1L, 7, ACCESS
+000152 B20A           00376                 btfsc BLOCK, 1, ACCESS
+000154 8CE1           00377                 bsf FSR1L, 6, ACCESS
+000156 B00A           00378                 btfsc BLOCK, 0, ACCESS
+000158 8AE1           00379                 bsf FSR1L, 5, ACCESS
+                      00380                         
+00015A C00C FFE7      00381                 movff DATA_BYTE, INDF1          ; write data in indirect memory
+                      00382 
+00015E 0012           00383                 return 
+                      00384 
+                      00385 
+                      00386 ;******************************************************************************
+                      00387 ;Start of main program
+                      00388 
+000160                00389 Main:
+000160                00390 HiTmr0:
+000160 A4F2           00391                 btfss INTCON, TMR0IF, ACCESS
+000162 D01F           00392                 bra HiTmr0End
+                      00393 
+                      00394 ; *** timer0 overflow ***
+000164 0E62           00395                 movlw 0x62                              ; 20 uS (the timer will not be incremented 
+                      00396                                                                 ; during 2 instruction cycles + we lost 
+                            one 
+                      00397                                                                 ; cycle during addwf ?)
+000166 26D6           00398                 addwf TMR0L,1, ACCESS           ; add constant to timer0
+000168 94F2           00399                 bcf INTCON, TMR0IF, ACCESS      ; clear interrupt flag
+                      00400 
+00016A                00401 HiTmr0a:
+                      00402 ; *** DMX 512 TX break time delay ***
+00016A B80D           00403                 btfsc SND_STATE, 4, ACCESS      ; must we send the start code ?
+00016C EFCA F000      00404                 goto HiTmr0b                            ; yes !
+                      00405         
+000170 A60D           00406                 btfss SND_STATE, 3, ACCESS      ; have all bytes been sent ?
+000172 EFD1 F000      00407                 goto HiTmr0c                            ; no !
+                      00408 
+000176 2A0F           00409                 incf BREAK, 1, ACCESS           ; increment break time counter
+000178 0E03           00410                 movlw 0x3
+00017A 600F           00411                 cpfslt BREAK, ACCESS            ; leave time (40-60uS) for the last 
+                      00412                                                                         ; dimmer bits to be fully sent
+00017C 8C94           00413                 bsf TRISC, 6, ACCESS            ; TX pin as input for 88uS 
+                      00414                                                                         ;(pull-down by an external resis
+                            tor)
+                      00415 
+00017E 600F           00416                 cpfslt BREAK, ACCESS            ; (40-60uS) after byte 511
+000180 9AAC           00417                 bcf TXSTA, TXEN, ACCESS         ; disable DMX 512 send
+                      00418         
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000182 0E07           00419                 movlw 0x07
+000184 640F           00420                 cpfsgt BREAK, ACCESS            ; is break time passed ? 
+                      00421                                                                         ; 100uS (88 uS in DMX512 spec)  
+000186 EFD1 F000      00422                 goto HiTmr0c                            ; no !
+                      00423 
+                      00424         ; *** <DEBUG> Uncomment for Debug, it gives a synchro pulse for 
+                      00425         ;     the oscilloscope. 
+                      00426         ;       bsf PORTB, 1, ACCESS
+                      00427         ;       nop
+                      00428         ;       nop
+                      00429         ;       bcf PORTB, 1, ACCESS
+                      00430         ;       nop
+                      00431         ;       nop
+                      00432         ;       nop
+                      00433         ;       bsf PORTB, 1, ACCESS
+                      00434         ; *** </DEBUG> ***
+                      00435         
+                      00436                 ; *** after break time we must set TX to high for at least 8 uS ***
+00018A 880D           00437                 bsf SND_STATE, 4, ACCESS        ; enable send of start code
+00018C 9C94           00438                 bcf TRISC, 6, ACCESS            ; TX pin as output
+00018E 8AAC           00439                 bsf TXSTA, TXEN, ACCESS         ; enable UART send
+000190 EFD1 F000      00440                 goto HiTmr0c
+                      00441 
+000194                00442 HiTmr0b:
+                      00443                 ; *** TX was high for 20uS -> send start code ***
+000194 6A0F           00444                 clrf BREAK, ACCESS                      ; clear break time counter
+000196 6A0D           00445                 clrf SND_STATE, ACCESS          ; enable sending bytes
+000198 6A0E           00446                 clrf SND_COUNT, ACCESS          ; start from dimmer 0           
+00019A 0E00           00447                 movlw 0x0
+00019C 6EAD           00448                 movwf TXREG, ACCESS             ; send start code (0)
+00019E EFD1 F000      00449                 goto HiTmr0c
+                      00450 
+0001A2                00451 HiTmr0c:
+                      00452 
+0001A2                00453 HiTmr0End:
+                      00454 
+0001A2                00455 HiTx:
+0001A2 A89E           00456                 btfss PIR1, TXIF, ACCESS 
+0001A4 D020           00457                 bra HiTxEnd
+                      00458 
+                      00459 ;       *** TX register is empty ***
+0001A6 A20D           00460                 btfss SND_STATE, 1, ACCESS      ; should we send data ?
+0001A8 EFDD F000      00461                 goto HiTxb                                      ; yes
+                      00462                 
+0001AC B60D           00463                 btfsc SND_STATE, 3, ACCESS      ; are we in break sequence ?
+0001AE EFF3 F000      00464                 goto HiTxEnd                            ; yes, ignore interrupt (the TXIF
+                      00465                                                                         ; flag is not cleared because we
+                      00466                                                                         ; don't load data in TXREG). 
+                      00467         
+0001B2 860D           00468                 bsf  SND_STATE, 3, ACCESS   ; no, but go in break sequence
+0001B4 6A0F           00469                 clrf BREAK, ACCESS                      ; sequence at 0
+0001B6 EFF3 F000      00470                 goto HiTxEnd ; 
+                      00471 
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0001BA                00472 HiTxb:
+                      00473         ; *** send dimmer bytes ***
+0001BA EE22 F000      00474                 lfsr FSR2, 0x200                        ; base address of dimmer 0-255
+0001BE B00D           00475                 btfsc SND_STATE, 0, ACCESS      ; high dimmer ?
+0001C0 EE23 F000      00476                 lfsr FSR2, 0x300                        ; yes dimmer 256-511
+                      00477 
+0001C4 500E           00478                 movf SND_COUNT, 0, ACCESS       ; read dimmer offset
+0001C6 26D9           00479                 addwf FSR2L, 1, ACCESS          ; add offset to indirect pointer
+0001C8 CFDF FFAD      00480                 movff INDF2, TXREG                      ; send DMX 512 data     
+                      00481 
+0001CC B00D           00482                 btfsc SND_STATE, 0, ACCESS      ; high dimmer ?
+0001CE EFED F000      00483                 goto HiTxc                                      ; yes
+0001D2 4A0E           00484                 infsnz SND_COUNT, 1, ACCESS     ; increment dimmer offset
+0001D4 800D           00485                 bsf SND_STATE, 0, ACCESS        ; 255->0 => set high dimmer
+0001D6 EFF3 F000      00486                 goto HiTxEnd
+                      00487 
+0001DA                00488 HiTxc:
+                      00489         ; *** high dimmer (256-511) offset increment ***
+0001DA 3E0E           00490                 incfsz SND_COUNT, 1, ACCESS     ; increment dimmer offset
+0001DC EFF3 F000      00491                 goto HiTxEnd                            ; no overflow           
+0001E0 820D           00492                 bsf SND_STATE, 1, ACCESS        ; end of trame (next is break)
+0001E2 EFF3 F000      00493                 goto HiTxEnd
+                      00494 
+0001E6                00495 HiTxEnd:
+0001E6 EFB0 F000      00496                 goto Main
+                      00497 ;******************************************************************************
+                      00498 ;End of program
+                      00499 
+                      00500                 END
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+A                                 00000000
+ACCESS                            00000000
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ADCON0                            00000FC2
+ADCON1                            00000FC1
+ADCS0                             00000006
+ADCS1                             00000007
+ADCS2                             00000006
+ADDEN                             00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADIP                              00000006
+ADON                              00000000
+ADRESH                            00000FC4
+ADRESL                            00000FC3
+AN0                               00000000
+AN1                               00000001
+AN2                               00000002
+AN3                               00000003
+AN4                               00000005
+AN5                               00000000
+AN6                               00000001
+AN7                               00000002
+BANKED                            00000001
+BCLIE                             00000003
+BCLIF                             00000003
+BCLIP                             00000003
+BF                                00000000
+BLOCK                             0000000A
+BOR                               00000000
+BREAK                             0000000F
+BRGH                              00000002
+BSR                               00000FE0
+BSR_SAVE                          00000000
+BSR_TEMP                          00000082
+C                                 00000000
+CCP1                              00000002
+CCP1CON                           00000FBD
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1IP                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCP2                              00000001
+CCP2A                             00000003
+CCP2CON                           00000FBA
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 12
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CCP2IE                            00000000
+CCP2IF                            00000000
+CCP2IP                            00000000
+CCP2M0                            00000000
+CCP2M1                            00000001
+CCP2M2                            00000002
+CCP2M3                            00000003
+CCP2X                             00000005
+CCP2Y                             00000004
+CCPR1H                            00000FBF
+CCPR1L                            00000FBE
+CCPR2H                            00000FBC
+CCPR2L                            00000FBB
+CFGS                              00000006
+CHIP                              00000009
+CHS0                              00000003
+CHS1                              00000004
+CHS2                              00000005
+CK                                00000006
+CKE                               00000006
+CKP                               00000004
+CLKO                              00000006
+CLRW                              CLRF WREG
+COMMAND                           00000007
+CREN                              00000004
+CS                                00000002
+CSRC                              00000007
+CleanMem                          00000114
+CleanMema                         00000118
+CleanMemb                         00000124
+D                                 00000005
+DATA_ADDRESS                      00000005
+DATA_BYTE                         0000000C
+DC                                00000001
+DC1B0                             00000004
+DC1B1                             00000005
+DC2B0                             00000004
+DC2B1                             00000005
+DDRA                              TRISA
+DDRB                              TRISB
+DDRC                              TRISC
+DDRD                              TRISD
+DDRE                              TRISE
+DONE                              00000002
+D_A                               00000005
+EEADR                             00000FA9
+EECON1                            00000FA6
+EECON2                            00000FA7
+EEDATA                            00000FA8
+EEIE                              00000004
+EEIF                              00000004
+EEIP                              00000004
+EEPGD                             00000007
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+FAST                              00000001
+FERR                              00000002
+FREE                              00000004
+FSR0                              00000000
+FSR0H                             00000FEA
+FSR0L                             00000FE9
+FSR1                              00000001
+FSR1H                             00000FE2
+FSR1L                             00000FE1
+FSR2                              00000002
+FSR2H                             00000FDA
+FSR2L                             00000FD9
+GCEN                              00000007
+GIE                               00000007
+GIEH                              00000007
+GIEL                              00000006
+GO                                00000002
+GO_DONE                           00000002
+HiTmr0                            00000160
+HiTmr0End                         000001A2
+HiTmr0a                           0000016A
+HiTmr0b                           00000194
+HiTmr0c                           000001A2
+HiTx                              000001A2
+HiTxEnd                           000001E6
+HiTxb                             000001BA
+HiTxc                             000001DA
+HighInt                           00000032
+HighIntEnd                        000000A0
+I2C_DAT                           00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+IBF                               00000007
+IBOV                              00000005
+INBYTE                            00000008
+INDF0                             00000FEF
+INDF1                             00000FE7
+INDF2                             00000FDF
+INT0                              00000000
+INT0E                             00000004
+INT0F                             00000001
+INT0IE                            00000004
+INT0IF                            00000001
+INT1                              00000001
+INT1IE                            00000003
+INT1IF                            00000000
+INT1IP                            00000006
+INT2                              00000002
+INT2IE                            00000004
+INT2IF                            00000001
+INT2IP                            00000007
+INTCON                            00000FF2
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 14
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+INTCON1                           00000FF2
+INTCON2                           00000FF1
+INTCON3                           00000FF0
+INTEDG0                           00000006
+INTEDG1                           00000005
+INTEDG2                           00000004
+IPEN                              00000007
+IPR1                              00000F9F
+IPR2                              00000FA2
+IRVST                             00000005
+ITMP1                             00000005
+ITMP2                             00000006
+Init                              000000A2
+LATA                              00000F89
+LATB                              00000F8A
+LATC                              00000F8B
+LATD                              00000F8C
+LATE                              00000F8D
+LCALL                             CALL
+LGOTO                             GOTO
+LVDCON                            00000FD2
+LVDEN                             00000004
+LVDIE                             00000002
+LVDIF                             00000002
+LVDIN                             00000005
+LVDIP                             00000002
+LVDL0                             00000000
+LVDL1                             00000001
+LVDL2                             00000002
+LVDL3                             00000003
+MOVFP                             MOVFF
+MOVPF                             MOVFF
+Main                              00000160
+N                                 00000004
+NEGW                              NEGF WREG
+NIBBLE_CURRENT                    0000000B
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BOR                           00000000
+NOT_DONE                          00000002
+NOT_PD                            00000002
+NOT_POR                           00000001
+NOT_RBPU                          00000007
+NOT_RC8                           00000006
+NOT_RI                            00000004
+NOT_T1SYNC                        00000002
+NOT_T3SYNC                        00000002
+NOT_TO                            00000003
+NOT_TX8                           00000006
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OBF                               00000006
+OERR                              00000001
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 15
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+OSC2                              00000006
+OSCCON                            00000FD3
+OUT0                              00000200
+OUT255                            00000201
+OUT256                            00000300
+OUT511                            00000301
+OV                                00000003
+P                                 00000004
+PCFG0                             00000000
+PCFG1                             00000001
+PCFG2                             00000002
+PCFG3                             00000003
+PCL                               00000FF9
+PCLATH                            00000FFA
+PCLATU                            00000FFB
+PD                                00000002
+PEIE                              00000006
+PEN                               00000002
+PIE1                              00000F9D
+PIE2                              00000FA0
+PIR1                              00000F9E
+PIR2                              00000FA1
+PLUSW0                            00000FEB
+PLUSW1                            00000FE3
+PLUSW2                            00000FDB
+POR                               00000001
+PORTA                             00000F80
+PORTB                             00000F81
+PORTC                             00000F82
+PORTD                             00000F83
+PORTE                             00000F84
+POSTDEC0                          00000FED
+POSTDEC1                          00000FE5
+POSTDEC2                          00000FDD
+POSTINC0                          00000FEE
+POSTINC1                          00000FE6
+POSTINC2                          00000FDE
+PR2                               00000FCB
+PREINC0                           00000FEC
+PREINC1                           00000FE4
+PREINC2                           00000FDC
+PRODH                             00000FF4
+PRODL                             00000FF3
+PSA                               00000003
+PSP0                              00000000
+PSP1                              00000001
+PSP2                              00000002
+PSP3                              00000003
+PSP4                              00000004
+PSP5                              00000005
+PSP6                              00000006
+PSP7                              00000007
+PSPIE                             00000007
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 16
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+PSPIF                             00000007
+PSPIP                             00000007
+PSPMODE                           00000004
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RBIP                              00000000
+RBPU                              00000007
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RC8_9                             00000006
+RC9                               00000006
+RCD8                              00000000
+RCEN                              00000003
+RCIE                              00000005
+RCIF                              00000005
+RCIP                              00000005
+RCON                              00000FD0
+RCREG                             00000FAE
+RCSTA                             00000FAB
+RD                                00000000
+RD0                               00000000
+RD1                               00000001
+RD16                              00000007
+RD2                               00000002
+RD3                               00000003
+RD4                               00000004
+RD5                               00000005
+RD6                               00000006
+RD7                               00000007
+RE0                               00000000
+RE1                               00000001
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 17
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RE2                               00000002
+READ_WRITE                        00000002
+RI                                00000004
+RSEN                              00000001
+RX                                00000007
+RX9                               00000006
+RX9D                              00000000
+R_W                               00000002
+ResetCmdEnd                       00000054
+ResetDevice                       0000012E
+S                                 00000003
+SCK                               00000003
+SCL                               00000003
+SCS                               00000000
+SDA                               00000004
+SDI                               00000004
+SDO                               00000005
+SEN                               00000000
+SMP                               00000007
+SND_COUNT                         0000000E
+SND_STATE                         0000000D
+SPBRG                             00000FAF
+SPEN                              00000007
+SREN                              00000005
+SS                                00000005
+SSPADD                            00000FC8
+SSPBUF                            00000FC9
+SSPCON1                           00000FC6
+SSPCON2                           00000FC5
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPIP                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPOV                             00000006
+SSPSTAT                           00000FC7
+STATUS                            00000FD8
+STATUS_SAVE                       00000001
+STATUS_TEMP                       00000081
+STKFUL                            00000007
+STKPTR                            00000FFC
+STKUNF                            00000006
+SWDTE                             00000000
+SWDTEN                            00000000
+SYNC                              00000004
+SetBlockCmdEnd                    00000072
+SspifEnd                          000000A0
+T08BIT                            00000006
+T0CKI                             00000004
+T0CON                             00000FD5
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 18
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0IP                              00000002
+T0PS0                             00000000
+T0PS1                             00000001
+T0PS2                             00000002
+T0SE                              00000004
+T1CKI                             00000000
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000FCD
+T1INSYNC                          00000002
+T1OSCEN                           00000003
+T1OSI                             00000001
+T1OSO                             00000000
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000FCA
+T3CCP1                            00000003
+T3CCP2                            00000006
+T3CKPS0                           00000004
+T3CKPS1                           00000005
+T3CON                             00000FB1
+T3INSYNC                          00000002
+T3SYNC                            00000002
+TABLAT                            00000FF5
+TBLPTRH                           00000FF7
+TBLPTRL                           00000FF6
+TBLPTRU                           00000FF8
+TMP1                              00000003
+TMP2                              00000004
+TMR0H                             00000FD7
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR0IP                            00000002
+TMR0L                             00000FD6
+TMR0ON                            00000007
+TMR1CS                            00000001
+TMR1H                             00000FCF
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1IP                            00000000
+TMR1L                             00000FCE
+TMR1ON                            00000000
+TMR2                              00000FCC
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2IP                            00000001
+TMR2ON                            00000002
+TMR3CS                            00000001
+TMR3H                             00000FB3
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 19
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR3IE                            00000001
+TMR3IF                            00000001
+TMR3IP                            00000001
+TMR3L                             00000FB2
+TMR3ON                            00000000
+TO                                00000003
+TOSH                              00000FFE
+TOSL                              00000FFD
+TOSU                              00000FFF
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000F92
+TRISB                             00000F93
+TRISC                             00000F94
+TRISD                             00000F95
+TRISE                             00000F96
+TRISE0                            00000000
+TRISE1                            00000001
+TRISE2                            00000002
+TRMT                              00000001
+TX                                00000006
+TX8_9                             00000006
+TX9                               00000006
+TX9D                              00000000
+TXD8                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXIP                              00000004
+TXREG                             00000FAD
+TXSTA                             00000FAC
+TestMacro                         
+UA                                00000001
+VREFM                             00000002
+VREFP                             00000003
+W                                 00000000
+WCOL                              00000007
+WDTCON                            00000FD1
+WR                                00000001
+WREG                              00000FE8
+WREG_SAVE                         00000002
+WREG_TEMP                         00000080
+WREN                              00000002
+WRERR                             00000003
+WriteCmdEnd                       000000A0
+WriteCmda                         0000008E
+WriteCmdb                         00000098
+WriteFlush                        00000138
+Z                                 00000002
+_BORV_20_2L                       000000FF
+_BORV_27_2L                       000000FB
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 20
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_BORV_42_2L                       000000F7
+_BORV_45_2L                       000000F3
+_BOR_OFF_2L                       000000FD
+_BOR_ON_2L                        000000FF
+_CCP2MX_OFF_3H                    000000FE
+_CCP2MX_ON_3H                     000000FF
+_CONFIG1H                         00300001
+_CONFIG1L                         00300000
+_CONFIG2H                         00300003
+_CONFIG2L                         00300002
+_CONFIG3H                         00300005
+_CONFIG3L                         00300004
+_CONFIG4H                         00300007
+_CONFIG4L                         00300006
+_CONFIG5H                         00300009
+_CONFIG5L                         00300008
+_CONFIG6H                         0030000B
+_CONFIG6L                         0030000A
+_CONFIG7H                         0030000D
+_CONFIG7L                         0030000C
+_CP0_OFF_5L                       000000FF
+_CP0_ON_5L                        000000FE
+_CP1_OFF_5L                       000000FF
+_CP1_ON_5L                        000000FD
+_CP2_OFF_5L                       000000FF
+_CP2_ON_5L                        000000FB
+_CP3_OFF_5L                       000000FF
+_CP3_ON_5L                        000000F7
+_CPB_OFF_5H                       000000FF
+_CPB_ON_5H                        000000BF
+_CPD_OFF_5H                       000000FF
+_CPD_ON_5H                        0000007F
+_DEBUG_OFF_4L                     000000FF
+_DEBUG_ON_4L                      0000007F
+_DEVID1                           003FFFFE
+_DEVID2                           003FFFFF
+_EBTR0_OFF_7L                     000000FF
+_EBTR0_ON_7L                      000000FE
+_EBTR1_OFF_7L                     000000FF
+_EBTR1_ON_7L                      000000FD
+_EBTR2_OFF_7L                     000000FF
+_EBTR2_ON_7L                      000000FB
+_EBTR3_OFF_7L                     000000FF
+_EBTR3_ON_7L                      000000F7
+_EBTRB_OFF_7H                     000000FF
+_EBTRB_ON_7H                      000000BF
+_ECIO_OSC_1H                      000000FD
+_EC_OSC_1H                        000000FC
+_HSPLL_OSC_1H                     000000FE
+_HS_OSC_1H                        000000FA
+_IDLOC0                           00200000
+_IDLOC1                           00200001
+_IDLOC2                           00200002
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 21
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_IDLOC3                           00200003
+_IDLOC4                           00200004
+_IDLOC5                           00200005
+_IDLOC6                           00200006
+_IDLOC7                           00200007
+_LP_OSC_1H                        000000F8
+_LVP_OFF_4L                       000000FB
+_LVP_ON_4L                        000000FF
+_OSCS_OFF_1H                      000000FF
+_OSCS_ON_1H                       000000DF
+_PWRT_OFF_2L                      000000FF
+_PWRT_ON_2L                       000000FE
+_RCIO_OSC_1H                      000000FF
+_RC_OSC_1H                        000000FB
+_STVR_OFF_4L                      000000FE
+_STVR_ON_4L                       000000FF
+_WDTPS_128_2H                     000000FF
+_WDTPS_16_2H                      000000F9
+_WDTPS_1_2H                       000000F1
+_WDTPS_2_2H                       000000F3
+_WDTPS_32_2H                      000000FB
+_WDTPS_4_2H                       000000F5
+_WDTPS_64_2H                      000000FD
+_WDTPS_8_2H                       000000F7
+_WDT_OFF_2H                       000000FE
+_WDT_ON_2H                        000000FF
+_WRT0_OFF_6L                      000000FF
+_WRT0_ON_6L                       000000FE
+_WRT1_OFF_6L                      000000FF
+_WRT1_ON_6L                       000000FD
+_WRT2_OFF_6L                      000000FF
+_WRT2_ON_6L                       000000FB
+_WRT3_OFF_6L                      000000FF
+_WRT3_ON_6L                       000000F7
+_WRTB_OFF_6H                      000000FF
+_WRTB_ON_6H                       000000BF
+_WRTC_OFF_6H                      000000FF
+_WRTC_ON_6H                       000000DF
+_WRTD_OFF_6H                      000000FF
+_WRTD_ON_6H                       0000007F
+_XT_OSC_1H                        000000F9
+__18F452                          00000001
+clrw                              clrf WREG
+lcall                             call
+lgoto                             goto
+movfp                             movff
+movpf                             movff
+negw                              negf WREG
+MPASM 03.50 Released                            SLAVE2DMX.ASM   7-31-2003  21:15:42         PAGE 22
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0000 : XXXX----XXXX---- --------XXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0100 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0140 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0180 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+01C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXX------ ----------------
+
+All other memory blocks unused.
+
+Program Memory Bytes Used:   474
+Program Memory Bytes Free: 32294
+
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :     0 reported,     0 suppressed
+
+

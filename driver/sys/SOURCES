@@ -1,0 +1,35 @@
+TARGETNAME=oGenInt
+TARGETTYPE=DRIVER
+
+KMDF_VERSION_MAJOR=1
+
+MSC_WARNING_LEVEL=/W4 /WX
+
+INF_NAME=oGenInt
+NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
+PASS0_BINPLACE=$(NTTARGETFILE0)
+
+C_DEFINES= $(C_DEFINES) 
+#-DBUFFERED_READ_WRITE=1
+
+
+INCLUDES=$(BASEDIR)\inc; \
+		 $(BASEDIR)\src\usb\inc; \
+		 $(BASEDIR)\src\wdm\usb\inc; 
+
+
+TARGETLIBS=$(TARGETLIBS) $(DDK_LIB_PATH)\usbd.lib
+
+USE_MAPSYM=1
+
+SOURCES=          \
+        IntUsb.rc \
+        BusbDbg.c \
+        IntUsb.c  \
+        IntPnP.c \
+        IntPwr.c \
+        IoctlInt.c   \
+        OcrwInt.c
+
+TARGET_DESTINATION=wdf
+

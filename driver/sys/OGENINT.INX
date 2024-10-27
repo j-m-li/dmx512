@@ -1,0 +1,94 @@
+[Version]
+Signature="$WINDOWS NT$"
+Class=USB
+ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5173}
+provider=%MSFT%
+DriverVer=03/11/2010,5.00.3788
+CatalogFile=ogenint.cat
+
+[SourceDisksNames]
+1="OksiD USB driver","",1
+
+[SourceDisksFiles]
+ogenint.sys=1
+
+[Manufacturer]
+%MfgName%=OksiD,NT$ARCH$
+
+[OksiD.NT$ARCH$]
+%USB\VID_04D8&PID_0000.DeviceDesc%=OGENINT.Dev, USB\VID_04D8&PID_0000
+%USB\VID_0403&PID_E088.DeviceDesc%=OGENINT.Dev, USB\VID_0403&PID_E088
+
+[ClassInstall32]
+Addreg=SampleClassReg     
+
+[SampleClassReg]
+HKR,,,0,%ClassName%
+HKR,,Icon,,-5
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[OGENINT.Dev]
+CopyFiles=OGENINT.Files.Ext, OGENINT.Files.Inf
+AddReg=OGENINT.AddReg
+
+[OGENINT.Dev.NT]
+CopyFiles=OGENINT.Files.Ext, OGENINT.Files.Inf
+AddReg=OGENINT.AddReg
+
+[OGENINT.Dev.NT.Services]
+Addservice = OGENINT, 0x00000002, OGENINT.AddService
+
+[OGENINT.AddService]
+DisplayName    = %OGENINT.SvcDesc%
+ServiceType    = 1                  ; SERVICE_KERNEL_DRIVER
+StartType      = 2                  ; SERVICE_AUTO_START
+ErrorControl   = 1                  ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %10%\System32\Drivers\OGENINT.sys
+LoadOrderGroup = Base
+
+[OGENINT.AddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,OGENINT.sys
+HKLM,"System\Currentcontrolset\Services\oGenInt\Parameters","MaximumTransferSize",0x10001,4096
+HKLM,"System\Currentcontrolset\Services\oGenInt\Parameters","DebugLevel",0x10001,4
+
+
+[OGENINT.Files.Ext]
+OGENINT.sys
+
+;-------------- WDF Coinstaller installation
+[DestinationDirs]
+CoInstaller_CopyFiles = 11
+
+[ogenint.Dev.NT.CoInstallers]
+AddReg=CoInstaller_AddReg
+CopyFiles=CoInstaller_CopyFiles
+
+[CoInstaller_CopyFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll
+
+[SourceDisksFiles]
+WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with SourceDisksNames
+
+[CoInstaller_AddReg]
+HKR,,CoInstallers32,0x00010000, "WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll,WdfCoInstaller"
+
+[ogenint.Dev.NT.Wdf]
+KmdfService = ogenint, ogenint_wdfsect
+
+[ogenint_wdfsect]
+KmdfLibraryVersion = $KMDFVERSION$
+
+;---------------------------------------------------------------;
+
+;---------------------------------------------------------------;
+
+[Strings]
+MSFT="O'ksi'D"
+MfgName="O'ksi'D (http://oksid.ch)"
+USB\VID_04D8&PID_0000.DeviceDesc="USB Interrupt Device"
+USB\VID_0403&PID_E088.DeviceDesc="O'ksi'D USB to DMX512"
+INTUSB.SvcDesc="oGenInt.sys USB Interrupt driver"
+ClassName = "USB dmx512"
